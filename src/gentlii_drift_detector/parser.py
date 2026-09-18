@@ -11,10 +11,11 @@ CLOSED_METADATA = re.compile(r"(?m)^-[ \t]+Closed:[ \t]*(?P<value>.*)$")
 LABELS_METADATA = re.compile(
     r"(?m)^-[ \t]+Labels:[ \t]*(?P<inline>.*)(?P<continuations>(?:\n[ \t]+[^\n]*)*)"
 )
-FINAL_SEPARATOR = re.compile(r"\n?[ \t]*---[ \t]*$")
+FINAL_SEPARATOR = re.compile(r"(?:^|\n)[ \t]*---[ \t]*$")
 
 
 def parse_issues(markdown: str) -> ParseResult:
+    markdown = markdown.replace("\r\n", "\n").replace("\r", "\n")
     matches = list(ISSUE_HEADING.finditer(markdown))
     warnings: list[str] = []
 

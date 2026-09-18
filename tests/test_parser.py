@@ -46,6 +46,28 @@ Export the report.
     assert issue.labels == ["enhancement", "customer-request"]
 
 
+def test_parses_crlf_metadata_body_and_final_separator() -> None:
+    result = parse_issues(
+        "## Issue #71: Windows export\r\n"
+        "\r\n"
+        "- Closed: 2026-09-15T12:00:00Z\r\n"
+        "- Labels:\r\n"
+        "  enhancement, windows\r\n"
+        "\r\n"
+        "### Body\r\n"
+        "\r\n"
+        "Content from a Windows export.\r\n"
+        "\r\n"
+        "---\r\n"
+    )
+
+    issue = result.issues[0]
+    assert issue.closed_at == "2026-09-15T12:00:00Z"
+    assert issue.labels == ["enhancement", "windows"]
+    assert issue.body == "Content from a Windows export."
+    assert not result.warnings
+
+
 def test_preserves_markdown_headings_inside_body() -> None:
     result = parse_issues(
         """## Issue #8: Preserve structure
@@ -63,6 +85,30 @@ Intro.
     assert result.issues[0].body == (
         "Intro.\n\n#### Acceptance criteria\n\n- Keep this heading."
     )
+
+
+def test_removes_only_a_standalone_final_separator() -> None:
+    inline_result = parse_issues(
+        """## Issue #80: Inline dashes
+
+### Body
+
+A value---
+"""
+    )
+    separated_result = parse_issues(
+        """## Issue #81: Dash boundaries
+
+### Body
+
+A value---
+
+---
+"""
+    )
+
+    assert inline_result.issues[0].body == "A value---"
+    assert separated_result.issues[0].body == "A value---"
 
 
 def test_keeps_repeated_issue_numbers_as_separate_records() -> None:
@@ -104,8 +150,6 @@ def test_text_outside_issue_sections_creates_warning() -> None:
 ### Body
 
 Useful content.
-
-Trailing text cannot occur outside the final section.
 """
     )
 
