@@ -45,8 +45,8 @@ class IssueExtractionResult(BaseModel):
 
 
 class SupportedClaim(BaseModel):
-    statement: str
-    issue_numbers: list[int]
+    statement: str = Field(min_length=1)
+    issue_numbers: list[int] = Field(min_length=1)
     confidence: Literal["low", "medium", "high"]
 
 
