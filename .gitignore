@@ -218,3 +218,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local GitHub issue exports and analysis results
+issues-2026.md
+issues-2026-tst.md
+issues2026-tst.md
+results/
