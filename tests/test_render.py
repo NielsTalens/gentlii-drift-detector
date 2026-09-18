@@ -88,9 +88,9 @@ def test_render_markdown_has_all_sections_claim_evidence_and_metadata():
     assert "Confidence: low" in rendered
     assert "Issues: #12, #34" in rendered
     assert "https://" not in rendered
-    assert "Model: `gpt-test`" in rendered
-    assert "Source: `issues-é.md`" in rendered
-    assert "Sparse issue #99" in rendered
+    assert "Model: gpt-test" in rendered
+    assert "Source: issues-é.md" in rendered
+    assert "Sparse issue \\#99" in rendered
     assert "Input tokens: 100" in rendered
 
 
@@ -98,6 +98,22 @@ def test_render_markdown_keeps_empty_sections_readable():
     rendered = render_markdown(make_result(empty=True))
 
     assert rendered.count("No supported claims.") == 7
+
+
+def test_render_markdown_renders_hostile_metadata_as_inert_text():
+    result = make_result()
+    result.model = "model\r\n## Injected `code` [link]"
+    result.source_file = "issues\n- injected-list.md"
+    result.parsing_warnings = ["warning\n# Fake heading `tick` [label]"]
+
+    rendered = render_markdown(result)
+
+    assert "\n## Injected" not in rendered
+    assert "\n- injected-list.md" not in rendered
+    assert "\n# Fake heading" not in rendered
+    assert "Model: model  \\#\\# Injected \\`code\\` \\[link\\]" in rendered
+    assert "Source: issues - injected-list.md" in rendered
+    assert "warning \\# Fake heading \\`tick\\` \\[label\\]" in rendered
 
 
 def test_write_outputs_publishes_both_artifacts(tmp_path: Path):
@@ -123,9 +139,14 @@ def test_write_outputs_cleans_temps_and_publishes_nothing_when_second_write_fail
         return path
 
     output_dir = tmp_path / "results"
+    output_dir.mkdir()
+    analysis_path = output_dir / "analysis.json"
+    report_path = output_dir / "report.md"
+    analysis_path.write_bytes(b"existing-json\n")
+    report_path.write_bytes(b"existing-report\n")
     with pytest.raises(OSError, match="disk full"):
         write_outputs(make_result(), output_dir, _temp_writer=failing_second_writer)
 
-    assert not (output_dir / "analysis.json").exists()
-    assert not (output_dir / "report.md").exists()
+    assert analysis_path.read_bytes() == b"existing-json\n"
+    assert report_path.read_bytes() == b"existing-report\n"
     assert list(output_dir.glob("*.tmp")) == []

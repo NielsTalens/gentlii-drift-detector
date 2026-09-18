@@ -18,6 +18,7 @@ _SECTIONS = (
     ("Uncertainties/Evidence Gaps", "uncertainties"),
 )
 _URL = re.compile(r"https?://\S+")
+_MARKDOWN_META = re.compile(r"([`\[\]#])")
 TempWriter = Callable[[Path, str, str], Path]
 
 
@@ -29,6 +30,11 @@ def _render_claim(claim: SupportedClaim) -> str:
     statement = _URL.sub("", claim.statement).strip()
     issues = ", ".join(f"#{number}" for number in claim.issue_numbers)
     return f"- {statement}\n  - Confidence: {claim.confidence}\n  - Issues: {issues}"
+
+
+def _metadata_text(value: str) -> str:
+    normalized = value.replace("\r", " ").replace("\n", " ")
+    return _MARKDOWN_META.sub(r"\\\1", normalized)
 
 
 def render_markdown(result: AnalysisResult) -> str:
@@ -47,8 +53,8 @@ def render_markdown(result: AnalysisResult) -> str:
         [
             "## Run Metadata",
             "",
-            f"- Model: `{result.model}`",
-            f"- Source: `{result.source_file}`",
+            f"- Model: {_metadata_text(result.model)}",
+            f"- Source: {_metadata_text(result.source_file)}",
             f"- Input tokens: {usage.input_tokens}",
             f"- Output tokens: {usage.output_tokens}",
             f"- Total tokens: {usage.total_tokens}",
@@ -58,7 +64,7 @@ def render_markdown(result: AnalysisResult) -> str:
         ]
     )
     lines.extend(
-        f"- {warning}" for warning in result.parsing_warnings
+        f"- {_metadata_text(warning)}" for warning in result.parsing_warnings
     ) if result.parsing_warnings else lines.append("No parsing warnings.")
     return "\n".join(lines) + "\n"
 
