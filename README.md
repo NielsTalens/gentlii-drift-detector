@@ -84,11 +84,11 @@ The CLI loads the OpenAI API key from the desktop keyring with the exact command
 Store the key through standard input so it does not appear in the command itself or shell history:
 
 ```bash
-read -rsp 'OpenAI API key: ' GENTLII_API_KEY
-printf '%s' "$GENTLII_API_KEY" | secret-tool store \
-  --label='Gentlii Drift Detector OpenAI API key' \
-  key GNTL_DD app gentlii-drift-detection
-unset GENTLII_API_KEY
+bash -c 'read -r -s -p "OpenAI API key: " key
+printf "\n"
+printf "%s" "$key" | secret-tool store \
+  --label="Gentlii Drift Detector OpenAI API key" \
+  key GNTL_DD app gentlii-drift-detection'
 ```
 
 Press Enter after typing the key. Your keyring may ask you to unlock it. Avoid placing the key directly in a command, environment file, or committed file.
@@ -98,8 +98,6 @@ Press Enter after typing the key. Your keyring may ask you to unlock it. Avoid p
 Use one level-two issue heading per issue. The issue number, title, and body are the useful evidence; `Closed` and `Labels` are optional metadata.
 
 ```markdown
-# Completed GitHub Issues
-
 ## Issue #123: Short issue title
 
 - Closed: 2026-03-14T10:32:00Z
@@ -123,4 +121,4 @@ The output directory contains:
 - `analysis.json`: structured per-issue observations, synthesis, evidence issue numbers, warnings, and token usage for reuse in later steps.
 - `report.md`: a human-readable synthesis with issue-number evidence.
 
-Both files contain derived evidence and conclusions, not the raw issue bodies. Review them as model-generated analysis rather than a statement of organizational intent.
+The program does not directly copy raw issue bodies into either file. Model-generated output may nevertheless quote or closely reproduce submitted content, so treat both outputs as potentially sensitive. Review them as model-generated analysis rather than a statement of organizational intent.

@@ -1,5 +1,3 @@
-# Afgeronde GitHub-issues
-
 ## Issue #101: Sneller een aanvraag terugvinden
 
 - Closed: 2026-02-12T09:30:00Z
