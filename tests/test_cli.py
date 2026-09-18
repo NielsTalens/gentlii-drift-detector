@@ -86,7 +86,7 @@ def test_run_wires_two_stage_analysis_and_aggregates_usage(tmp_path, capsys) -> 
     assert events[4][2:] == ("chosen", 3)
     assert events[5] == ("synthesize", [_observation()], "chosen")
     written = events[6][1]
-    assert written.schema_version == "1"
+    assert written.schema_version == "1.0"
     assert written.model == "chosen"
     assert written.source_file == str(source)
     assert written.usage == Usage(input_tokens=15, output_tokens=7, total_tokens=22)
@@ -117,6 +117,22 @@ def test_no_issues_fails_before_secret_lookup(tmp_path, capsys) -> None:
     assert run([str(source), "--output", str(tmp_path / "out")], dependencies=dependencies) != 0
     assert events == ["parse"]
     assert "no recognizable issues" in capsys.readouterr().err.lower()
+
+
+def test_invalid_utf8_fails_before_secret_lookup_or_analysis(tmp_path, capsys) -> None:
+    source = tmp_path / "issues.md"
+    source.write_bytes(b"\xff")
+    events: list[object] = []
+
+    assert run(
+        [str(source), "--output", str(tmp_path / "out")],
+        dependencies=_successful_dependencies(events),
+    ) != 0
+
+    assert events == []
+    error = capsys.readouterr().err
+    assert "Error:" in error
+    assert "utf-8" in error
 
 
 @pytest.mark.parametrize(

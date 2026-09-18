@@ -75,7 +75,6 @@ def run(
             total_tokens=extraction.usage.total_tokens + synthesis.usage.total_tokens,
         )
         result = AnalysisResult(
-            schema_version="1",
             model=args.model,
             source_file=str(source),
             parsing_warnings=parsed.warnings,
