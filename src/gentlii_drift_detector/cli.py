@@ -36,6 +36,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output", required=True)
     parser.add_argument("--model", default="gpt-5.6-terra")
     parser.add_argument("--batch-size", type=_positive_integer, default=10)
+    parser.add_argument("--quiet", action="store_true")
     return parser
 
 
@@ -62,12 +63,31 @@ def run(
             print("Error: no recognizable issues found.", file=sys.stderr)
             return 1
 
+        def progress(message: str) -> None:
+            if not args.quiet:
+                print(message, file=sys.stderr, flush=True)
+
+        progress(f"Parsed {len(parsed.issues)} issue sections.")
+        progress("Loading OpenAI key from keyring...")
+
         secret = dependencies.load_key()
         client = dependencies.openai_constructor(api_key=secret, max_retries=2)
         analyzer = dependencies.analysis_client_constructor(client)
+        progress("Extracting issue evidence...")
+
+        def extraction_progress(batch_number: int, total_batches: int, start: int, end: int) -> None:
+            progress(
+                f"  Batch {batch_number}/{total_batches} "
+                f"(issues {start + 1}-{end})"
+            )
+
         extraction = analyzer.extract_issue_observations(
-            parsed.issues, model=args.model, batch_size=args.batch_size
+            parsed.issues,
+            model=args.model,
+            batch_size=args.batch_size,
+            progress=extraction_progress,
         )
+        progress("Synthesizing observed strategy and product vision...")
         synthesis = analyzer.synthesize(extraction.observations, model=args.model)
         usage = Usage(
             input_tokens=extraction.usage.input_tokens + synthesis.usage.input_tokens,
@@ -82,6 +102,7 @@ def run(
             synthesis=synthesis.synthesis,
             usage=usage,
         )
+        progress("Writing analysis outputs...")
         json_path, report_path = dependencies.output_writer(result, args.output)
         print(f"JSON: {json_path}")
         print(f"Report: {report_path}")

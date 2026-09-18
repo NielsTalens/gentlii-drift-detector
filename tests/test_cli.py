@@ -22,8 +22,10 @@ def _successful_dependencies(events: list[object], *, warnings=()) -> Dependenci
     observation = _observation()
 
     class FakeAnalyzer:
-        def extract_issue_observations(self, issues, model, batch_size):
+        def extract_issue_observations(self, issues, model, batch_size, progress=None):
             events.append(("extract", issues, model, batch_size))
+            if progress is not None:
+                progress(1, 1, 0, len(issues))
             return IssueExtractionResult(observations=[observation], usage=Usage(input_tokens=10, output_tokens=4, total_tokens=14))
 
         def synthesize(self, observations, model):
@@ -63,6 +65,41 @@ def test_help_describes_cli_interface(capsys: pytest.CaptureFixture[str]) -> Non
     assert "--output" in help_text
     assert "--model" in help_text
     assert "--batch-size" in help_text
+    assert "--quiet" in help_text
+
+
+def test_progress_reports_stages_to_stderr(tmp_path, capsys) -> None:
+    source = tmp_path / "issues.md"
+    source.write_text("issue markdown", encoding="utf-8")
+    events: list[object] = []
+
+    assert run(
+        [str(source), "--output", str(tmp_path / "results")],
+        dependencies=_successful_dependencies(events),
+    ) == 0
+
+    progress = capsys.readouterr().err
+    assert "Parsed 1 issue" in progress
+    assert "Loading OpenAI key" in progress
+    assert "Extracting issue evidence" in progress
+    assert "Synthesizing observed strategy" in progress
+    assert "Writing analysis outputs" in progress
+
+
+def test_quiet_suppresses_progress_but_not_warnings(tmp_path, capsys) -> None:
+    source = tmp_path / "issues.md"
+    source.write_text("issue markdown", encoding="utf-8")
+    events: list[object] = []
+
+    assert run(
+        [str(source), "--output", str(tmp_path / "results"), "--quiet"],
+        dependencies=_successful_dependencies(events, warnings=["Sparse issue"]),
+    ) == 0
+
+    progress = capsys.readouterr().err
+    assert "Sparse issue" in progress
+    assert "Parsed 1 issue" not in progress
+    assert "Synthesizing observed strategy" not in progress
 
 
 @pytest.mark.parametrize("value", ["0", "-1"])

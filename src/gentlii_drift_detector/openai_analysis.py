@@ -1,6 +1,6 @@
 from html import escape
 import json
-from typing import Any, Sequence
+from collections.abc import Callable, Sequence
 
 from gentlii_drift_detector.models import (
     Issue,
@@ -48,15 +48,22 @@ class AnalysisClient:
         self._client = client
 
     def extract_issue_observations(
-        self, issues: Sequence[Issue], model: str, batch_size: int
+        self,
+        issues: Sequence[Issue],
+        model: str,
+        batch_size: int,
+        progress: Callable[[int, int, int, int], None] | None = None,
     ) -> IssueExtractionResult:
         if batch_size <= 0:
             raise ValueError("batch_size must be positive")
 
         observations: list[IssueObservation] = []
         usage = Usage()
-        for start in range(0, len(issues), batch_size):
+        total_batches = (len(issues) + batch_size - 1) // batch_size
+        for batch_number, start in enumerate(range(0, len(issues), batch_size), 1):
             batch = issues[start : start + batch_size]
+            if progress is not None:
+                progress(batch_number, total_batches, start, start + len(batch))
             response = self._client.responses.parse(
                 model=model,
                 input=[
