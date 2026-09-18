@@ -63,3 +63,13 @@ class Synthesis(BaseModel):
 class SynthesisResult(BaseModel):
     synthesis: Synthesis
     usage: Usage = Field(default_factory=Usage)
+
+
+class AnalysisResult(BaseModel):
+    schema_version: str = "1.0"
+    model: str
+    source_file: str
+    parsing_warnings: list[str] = Field(default_factory=list)
+    observations: list[IssueObservation] = Field(default_factory=list)
+    synthesis: Synthesis
+    usage: Usage = Field(default_factory=Usage)
