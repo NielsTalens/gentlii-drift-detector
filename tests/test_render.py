@@ -102,7 +102,7 @@ def test_render_markdown_keeps_empty_sections_readable():
 
 def test_render_markdown_renders_hostile_metadata_as_inert_text():
     result = make_result()
-    result.model = "model\r\n## Injected `code` [link]"
+    result.model = 'model\r\n## Injected `code` [link] <img src="x"> & value'
     result.source_file = "issues\n- injected-list.md"
     result.parsing_warnings = ["warning\n# Fake heading `tick` [label]"]
 
@@ -111,7 +111,9 @@ def test_render_markdown_renders_hostile_metadata_as_inert_text():
     assert "\n## Injected" not in rendered
     assert "\n- injected-list.md" not in rendered
     assert "\n# Fake heading" not in rendered
+    assert "<img" not in rendered
     assert "Model: model  \\#\\# Injected \\`code\\` \\[link\\]" in rendered
+    assert "&lt;img src=&quot;x&quot;&gt; &amp; value" in rendered
     assert "Source: issues - injected-list.md" in rendered
     assert "warning \\# Fake heading \\`tick\\` \\[label\\]" in rendered
 

@@ -2,6 +2,7 @@ import json
 import os
 import re
 import tempfile
+from html import escape
 from collections.abc import Callable
 from pathlib import Path
 
@@ -34,7 +35,7 @@ def _render_claim(claim: SupportedClaim) -> str:
 
 def _metadata_text(value: str) -> str:
     normalized = value.replace("\r", " ").replace("\n", " ")
-    return _MARKDOWN_META.sub(r"\\\1", normalized)
+    return _MARKDOWN_META.sub(r"\\\1", escape(normalized, quote=True))
 
 
 def render_markdown(result: AnalysisResult) -> str:
