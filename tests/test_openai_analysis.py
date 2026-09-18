@@ -17,7 +17,7 @@ class FakeResponses:
         observations, usage = next(self.batches)
         return SimpleNamespace(
             output_parsed=IssueObservationBatch(observations=observations),
-            usage=SimpleNamespace(**usage),
+            usage=SimpleNamespace(**usage) if usage is not None else None,
         )
 
 
@@ -79,6 +79,20 @@ def test_extraction_missing_parsed_output_raises_analysis_error():
 
     with pytest.raises(AnalysisError, match="parsed output"):
         client.extract_issue_observations([Issue(number=1, title="One", body="Body")], "model", 1)
+
+
+def test_extraction_accepts_response_without_usage_data():
+    fake_responses = FakeResponses([([observation(1)], None)])
+    client = AnalysisClient(SimpleNamespace(responses=fake_responses))
+
+    result = client.extract_issue_observations(
+        [Issue(number=1, title="One", body="Body")], "model", 1
+    )
+
+    assert [item.issue_number for item in result.observations] == [1]
+    assert result.usage.input_tokens == 0
+    assert result.usage.output_tokens == 0
+    assert result.usage.total_tokens == 0
 
 
 @pytest.mark.parametrize("batch_size", [0, -1])

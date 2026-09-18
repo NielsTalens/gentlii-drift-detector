@@ -49,9 +49,10 @@ class AnalysisClient:
 
             observations.extend(response.output_parsed.observations)
             response_usage = response.usage
-            usage.input_tokens += response_usage.input_tokens
-            usage.output_tokens += response_usage.output_tokens
-            usage.total_tokens += response_usage.total_tokens
+            if response_usage is not None:
+                usage.input_tokens += response_usage.input_tokens
+                usage.output_tokens += response_usage.output_tokens
+                usage.total_tokens += response_usage.total_tokens
 
         return IssueExtractionResult(observations=observations, usage=usage)
 
