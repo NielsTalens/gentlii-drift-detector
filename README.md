@@ -30,7 +30,7 @@ Based on this analysis, formulate:
 
 - **Observed Strategy**
 - **Observed Strategic Goals**
-- **Observed Product Vision**
+- **Observed Product Vision**\
 
 ### Step 3 — Compare intended and observed strategy
 
@@ -76,6 +76,8 @@ The default model is `gpt-5.6-terra`. Use `--model MODEL` to select another mode
 .venv/bin/drift-detector issues-2026.md --output results/ \
   --model gpt-5.6-terra --batch-size 10
 ```
+
+Progress is printed to stderr while parsing, extracting batches, synthesizing, and writing outputs. Use `--quiet` to suppress progress while retaining warnings and errors.
 
 ### Store the API key
 
