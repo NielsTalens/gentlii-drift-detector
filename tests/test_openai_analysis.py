@@ -107,6 +107,31 @@ def test_extraction_batches_with_safe_prompt_and_accumulates_usage():
     assert first_prompt.count("<issue ") == 2
 
 
+def test_extraction_serializes_available_issue_metadata_without_requiring_it():
+    fake_responses = FakeResponses([([observation(1), observation(2)], None)])
+    client = AnalysisClient(SimpleNamespace(responses=fake_responses))
+    issues = [
+        Issue(
+            number=1,
+            title="With metadata",
+            body="Body 1",
+            closed_at="2026-09-01T12:30:00Z",
+            labels=["enhancement", "customer <request>"],
+        ),
+        Issue(number=2, title="Without metadata", body="Body 2"),
+    ]
+
+    client.extract_issue_observations(issues, model="test-model", batch_size=2)
+
+    prompt = fake_responses.calls[0]["input"][1]["content"]
+    assert (
+        '<issue number="1" title="With metadata" '
+        'closed_at="2026-09-01T12:30:00Z" '
+        'labels="enhancement, customer &lt;request&gt;">'
+    ) in prompt
+    assert '<issue number="2" title="Without metadata">' in prompt
+
+
 def test_extraction_missing_parsed_output_raises_analysis_error():
     fake_responses = FakeResponses([])
     fake_responses.parse = lambda **kwargs: SimpleNamespace(

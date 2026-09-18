@@ -159,7 +159,15 @@ def _serialize_issues(issues: Sequence[Issue]) -> str:
     for issue in issues:
         title = escape(issue.title, quote=True)
         body = escape(issue.body, quote=True)
+        metadata = []
+        if issue.closed_at is not None:
+            metadata.append(f'closed_at="{escape(issue.closed_at, quote=True)}"')
+        if issue.labels:
+            labels = escape(", ".join(issue.labels), quote=True)
+            metadata.append(f'labels="{labels}"')
+        metadata_attributes = f" {' '.join(metadata)}" if metadata else ""
         serialized.append(
-            f'<issue number="{issue.number}" title="{title}">\n{body}\n</issue>'
+            f'<issue number="{issue.number}" title="{title}"{metadata_attributes}>\n'
+            f'{body}\n</issue>'
         )
     return "\n\n".join(serialized)
