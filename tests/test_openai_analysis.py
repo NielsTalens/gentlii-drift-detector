@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 import pytest
+from pydantic import ValidationError
 
 from gentlii_drift_detector.models import Issue, IssueObservation, IssueObservationBatch
 from gentlii_drift_detector.openai_analysis import AnalysisClient, AnalysisError
@@ -35,7 +36,7 @@ def observation(number):
     )
 
 
-def test_extracts_batches_with_safe_prompt_and_accumulates_usage():
+def test_extraction_batches_with_safe_prompt_and_accumulates_usage():
     fake_responses = FakeResponses(
         [
             ([observation(1), observation(2)], {"input_tokens": 10, "output_tokens": 4, "total_tokens": 14}),
@@ -68,7 +69,7 @@ def test_extracts_batches_with_safe_prompt_and_accumulates_usage():
     assert first_prompt.count("<issue ") == 2
 
 
-def test_missing_parsed_output_raises_analysis_error():
+def test_extraction_missing_parsed_output_raises_analysis_error():
     fake_responses = FakeResponses([])
     fake_responses.parse = lambda **kwargs: SimpleNamespace(
         output_parsed=None,
@@ -81,7 +82,7 @@ def test_missing_parsed_output_raises_analysis_error():
 
 
 @pytest.mark.parametrize("batch_size", [0, -1])
-def test_non_positive_batch_size_fails_locally(batch_size):
+def test_extraction_non_positive_batch_size_fails_locally(batch_size):
     fake_responses = FakeResponses([])
     client = AnalysisClient(SimpleNamespace(responses=fake_responses))
 
@@ -89,3 +90,22 @@ def test_non_positive_batch_size_fails_locally(batch_size):
         client.extract_issue_observations([], "model", batch_size)
 
     assert fake_responses.calls == []
+
+
+def test_extraction_schema_requires_all_categories_and_observations():
+    incomplete = {
+        "issue_number": 1,
+        "title": "One",
+        "delivery_status": "delivered",
+        "capabilities": [],
+        "strategic_goals": [],
+        "investment_themes": [],
+        "direction_signals": [],
+        "evidence_summary": "Evidence",
+        "confidence": "high",
+    }
+
+    with pytest.raises(ValidationError, match="user_needs"):
+        IssueObservation.model_validate(incomplete)
+    with pytest.raises(ValidationError, match="observations"):
+        IssueObservationBatch.model_validate({})

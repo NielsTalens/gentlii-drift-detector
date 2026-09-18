@@ -20,17 +20,17 @@ class IssueObservation(BaseModel):
     issue_number: int
     title: str
     delivery_status: Literal["delivered", "not_delivered", "uncertain"]
-    user_needs: list[str] = Field(default_factory=list)
-    capabilities: list[str] = Field(default_factory=list)
-    strategic_goals: list[str] = Field(default_factory=list)
-    investment_themes: list[str] = Field(default_factory=list)
-    direction_signals: list[str] = Field(default_factory=list)
+    user_needs: list[str]
+    capabilities: list[str]
+    strategic_goals: list[str]
+    investment_themes: list[str]
+    direction_signals: list[str]
     evidence_summary: str
     confidence: Literal["low", "medium", "high"]
 
 
 class IssueObservationBatch(BaseModel):
-    observations: list[IssueObservation] = Field(default_factory=list)
+    observations: list[IssueObservation]
 
 
 class Usage(BaseModel):
