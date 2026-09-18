@@ -1,3 +1,5 @@
+import os
+import tempfile
 import json
 from pathlib import Path
 
@@ -10,7 +12,12 @@ from gentlii_drift_detector.models import (
     Synthesis,
     Usage,
 )
-from gentlii_drift_detector.render import render_json, render_markdown, write_outputs
+from gentlii_drift_detector.render import (
+    _write_temp,
+    render_json,
+    render_markdown,
+    write_outputs,
+)
 
 
 def make_result(*, empty: bool = False) -> AnalysisResult:
@@ -118,6 +125,32 @@ def test_render_markdown_renders_hostile_metadata_as_inert_text():
     assert "warning \\# Fake heading \\`tick\\` \\[label\\]" in rendered
 
 
+def test_render_markdown_renders_hostile_claim_as_inert_url_free_text():
+    result = make_result()
+    result.synthesis.observed_strategy[0].statement = (
+        "Gewone Nederlandse tekst\n# Injected\n- list <img src=x> "
+        "![image](data:text/html,bad) [link](https://example.test) "
+        "mailto:user@example.test www.example.test custom://host"
+    )
+
+    rendered = render_markdown(result)
+
+    assert "Gewone Nederlandse tekst" in rendered
+    assert "\n# Injected" not in rendered
+    assert "\n- list" not in rendered
+    assert "<img" not in rendered
+    for token in ("data:", "mailto:", "http://", "https://", "www.", "custom://"):
+        assert token not in rendered
+    assert "\\# Injected - list &lt;img src=x&gt;" in rendered
+
+
+def test_render_markdown_leaves_ordinary_dutch_claim_text_unchanged():
+    result = make_result()
+    result.synthesis.observed_strategy[0].statement = "Maak dagelijks werk eenvoudiger"
+
+    assert "- Maak dagelijks werk eenvoudiger\n" in render_markdown(result)
+
+
 def test_write_outputs_publishes_both_artifacts(tmp_path: Path):
     paths = write_outputs(make_result(), tmp_path / "results")
 
@@ -152,3 +185,54 @@ def test_write_outputs_cleans_temps_and_publishes_nothing_when_second_write_fail
     assert analysis_path.read_bytes() == b"existing-json\n"
     assert report_path.read_bytes() == b"existing-report\n"
     assert list(output_dir.glob("*.tmp")) == []
+
+
+@pytest.mark.parametrize("preexisting", [False, True])
+def test_write_outputs_rolls_back_pair_when_second_publication_replace_fails(
+    tmp_path: Path, preexisting: bool
+):
+    output_dir = tmp_path / "results"
+    output_dir.mkdir()
+    analysis_path = output_dir / "analysis.json"
+    report_path = output_dir / "report.md"
+    if preexisting:
+        analysis_path.write_bytes(b"old-analysis")
+        report_path.write_bytes(b"old-report")
+    replace_calls = 0
+
+    def fail_second_replace(source: Path, target: Path) -> None:
+        nonlocal replace_calls
+        replace_calls += 1
+        if replace_calls == 2:
+            raise OSError("replace failed")
+        source.replace(target)
+
+    with pytest.raises(OSError, match="replace failed"):
+        write_outputs(make_result(), output_dir, _replace=fail_second_replace)
+
+    if preexisting:
+        assert analysis_path.read_bytes() == b"old-analysis"
+        assert report_path.read_bytes() == b"old-report"
+    else:
+        assert not analysis_path.exists()
+        assert not report_path.exists()
+    assert list(output_dir.glob("*.tmp")) == []
+
+
+def test_write_temp_closes_descriptor_when_fdopen_fails(tmp_path: Path):
+    descriptor = -1
+
+    def make_temp(*, dir: Path, suffix: str):
+        nonlocal descriptor
+        descriptor, name = tempfile.mkstemp(dir=dir, suffix=suffix)
+        return descriptor, name
+
+    def fail_fdopen(*args, **kwargs):
+        raise OSError("fdopen failed")
+
+    with pytest.raises(OSError, match="fdopen failed"):
+        _write_temp(tmp_path, "content", ".txt", _mkstemp=make_temp, _fdopen=fail_fdopen)
+
+    with pytest.raises(OSError):
+        os.fstat(descriptor)
+    assert list(tmp_path.iterdir()) == []
