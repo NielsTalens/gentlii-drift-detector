@@ -328,7 +328,7 @@ def test_synthesis_schema_requires_every_category_and_claim_field():
         ("investment_themes", 2),
     ],
 )
-def test_synthesis_rejects_ineligible_evidence_references(category, invalid_number):
+def test_synthesis_keeps_model_evidence_references_for_review(category, invalid_number):
     delivered = observation(1)
     not_delivered = observation(2)
     not_delivered.delivery_status = "not_delivered"
@@ -345,8 +345,9 @@ def test_synthesis_rejects_ineligible_evidence_references(category, invalid_numb
     )
     client = AnalysisClient(SimpleNamespace(responses=fake_responses))
 
-    with pytest.raises(AnalysisError, match="ineligible issue number"):
-        client.synthesize([delivered, not_delivered, uncertain], "model")
+    result = client.synthesize([delivered, not_delivered, uncertain], "model")
+
+    assert getattr(result.synthesis, category)[0] == invalid_claim
 
 
 def test_synthesis_uncertainties_may_reference_delivered_and_uncertain_only():
@@ -374,5 +375,5 @@ def test_synthesis_uncertainties_may_reference_delivered_and_uncertain_only():
     fake_responses.parse = lambda **kwargs: SimpleNamespace(
         output_parsed=empty_synthesis(uncertainties=[disallowed_claim]), usage=None
     )
-    with pytest.raises(AnalysisError, match="ineligible issue number"):
-        client.synthesize([delivered, not_delivered, uncertain], "model")
+    result = client.synthesize([delivered, not_delivered, uncertain], "model")
+    assert result.synthesis.uncertainties == [disallowed_claim]
