@@ -1,9 +1,16 @@
+import json
 from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
 
-from gentlii_drift_detector.models import Issue, IssueObservation, IssueObservationBatch
+from gentlii_drift_detector.models import (
+    Issue,
+    IssueObservation,
+    IssueObservationBatch,
+    SupportedClaim,
+    Synthesis,
+)
 from gentlii_drift_detector.openai_analysis import AnalysisClient, AnalysisError
 
 
@@ -33,6 +40,23 @@ def observation(number):
         direction_signals=[],
         evidence_summary=f"Evidence {number}",
         confidence="high",
+    )
+
+
+def synthesis():
+    claim = SupportedClaim(
+        statement="Teams need faster review workflows.",
+        issue_numbers=[1],
+        confidence="high",
+    )
+    return Synthesis(
+        observed_strategy=[claim],
+        observed_strategic_goals=[claim],
+        observed_product_vision=[claim],
+        user_needs=[claim],
+        capabilities=[claim],
+        investment_themes=[claim],
+        uncertainties=[],
     )
 
 
@@ -123,3 +147,113 @@ def test_extraction_schema_requires_all_categories_and_observations():
         IssueObservation.model_validate(incomplete)
     with pytest.raises(ValidationError, match="observations"):
         IssueObservationBatch.model_validate({})
+
+
+def test_synthesis_sends_filtered_compact_observations_with_safe_prompt():
+    fake_responses = FakeResponses([])
+    fake_responses.parse = lambda **kwargs: (
+        fake_responses.calls.append(kwargs)
+        or SimpleNamespace(
+            output_parsed=synthesis(),
+            usage=SimpleNamespace(input_tokens=20, output_tokens=8, total_tokens=28),
+        )
+    )
+    client = AnalysisClient(SimpleNamespace(responses=fake_responses))
+    delivered = observation(1)
+    delivered.evidence_summary = "Compact delivered evidence"
+    not_delivered = observation(2)
+    not_delivered.delivery_status = "not_delivered"
+    not_delivered.evidence_summary = "Cancelled secret body marker"
+    uncertain = observation(3)
+    uncertain.delivery_status = "uncertain"
+    uncertain.evidence_summary = "Ambiguous evidence"
+
+    result = client.synthesize([delivered, not_delivered, uncertain], "synthesis-model")
+
+    assert result.synthesis == synthesis()
+    assert result.usage.input_tokens == 20
+    assert result.usage.output_tokens == 8
+    assert result.usage.total_tokens == 28
+    assert len(fake_responses.calls) == 1
+    call = fake_responses.calls[0]
+    assert call["model"] == "synthesis-model"
+    assert call["store"] is False
+    assert call["text_format"] is Synthesis
+    assert [message["role"] for message in call["input"]] == ["system", "user"]
+    assert "tools" not in call
+    assert "web" not in call
+
+    system_prompt = call["input"][0]["content"]
+    for required_instruction in (
+        "recurring patterns",
+        "evidence from inference",
+        "only supplied issue numbers",
+        "never invent issue numbers",
+        "concise",
+        "single period",
+        "do not assert change over time",
+    ):
+        assert required_instruction in system_prompt
+    assert "uncertain observations" in system_prompt
+    assert "must not support strategy, goal, or vision claims" in system_prompt
+
+    user_prompt = call["input"][1]["content"]
+    payload = json.loads(user_prompt)
+    assert "Compact delivered evidence" in user_prompt
+    assert payload["delivered_observations"][0]["issue_number"] == 1
+    assert "Cancelled secret body marker" not in user_prompt
+    assert all(
+        item["issue_number"] != 2
+        for items in payload.values()
+        for item in items
+    )
+    assert "Ambiguous evidence" in user_prompt
+    assert payload["uncertainty_context"][0]["issue_number"] == 3
+
+
+def test_synthesis_calls_model_with_empty_delivered_context_and_no_usage():
+    uncertain = observation(9)
+    uncertain.delivery_status = "uncertain"
+    fake_responses = FakeResponses([])
+    fake_responses.parse = lambda **kwargs: (
+        fake_responses.calls.append(kwargs)
+        or SimpleNamespace(output_parsed=synthesis(), usage=None)
+    )
+    client = AnalysisClient(SimpleNamespace(responses=fake_responses))
+
+    result = client.synthesize([uncertain], "model")
+
+    payload = json.loads(fake_responses.calls[0]["input"][1]["content"])
+    assert payload["delivered_observations"] == []
+    assert payload["uncertainty_context"][0]["issue_number"] == 9
+    assert result.usage.input_tokens == 0
+    assert result.usage.output_tokens == 0
+    assert result.usage.total_tokens == 0
+
+
+def test_synthesis_missing_parsed_output_raises_analysis_error():
+    fake_responses = FakeResponses([])
+    fake_responses.parse = lambda **kwargs: SimpleNamespace(
+        output_parsed=None,
+        usage=SimpleNamespace(input_tokens=1, output_tokens=1, total_tokens=2),
+    )
+    client = AnalysisClient(SimpleNamespace(responses=fake_responses))
+
+    with pytest.raises(AnalysisError, match="parsed output"):
+        client.synthesize([observation(1)], "model")
+
+
+def test_synthesis_schema_requires_every_category_and_claim_field():
+    with pytest.raises(ValidationError, match="issue_numbers"):
+        SupportedClaim.model_validate({"statement": "Claim", "confidence": "high"})
+
+    incomplete = {
+        "observed_strategy": [],
+        "observed_strategic_goals": [],
+        "observed_product_vision": [],
+        "user_needs": [],
+        "capabilities": [],
+        "investment_themes": [],
+    }
+    with pytest.raises(ValidationError, match="uncertainties"):
+        Synthesis.model_validate(incomplete)

@@ -42,3 +42,24 @@ class Usage(BaseModel):
 class IssueExtractionResult(BaseModel):
     observations: list[IssueObservation] = Field(default_factory=list)
     usage: Usage = Field(default_factory=Usage)
+
+
+class SupportedClaim(BaseModel):
+    statement: str
+    issue_numbers: list[int]
+    confidence: Literal["low", "medium", "high"]
+
+
+class Synthesis(BaseModel):
+    observed_strategy: list[SupportedClaim]
+    observed_strategic_goals: list[SupportedClaim]
+    observed_product_vision: list[SupportedClaim]
+    user_needs: list[SupportedClaim]
+    capabilities: list[SupportedClaim]
+    investment_themes: list[SupportedClaim]
+    uncertainties: list[SupportedClaim]
+
+
+class SynthesisResult(BaseModel):
+    synthesis: Synthesis
+    usage: Usage = Field(default_factory=Usage)
