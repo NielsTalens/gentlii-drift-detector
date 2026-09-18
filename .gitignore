@@ -150,8 +150,9 @@ activemq-data/
 # Environments
 .env
 .envrc
-.venv
+.venv/
 .worktrees/
+results/
 env/
 venv/
 ENV/

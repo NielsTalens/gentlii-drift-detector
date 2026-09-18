@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gentlii-drift-detector"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "openai>=2,<3",
+    "pydantic>=2,<3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10"]
+
+[project.scripts]
+drift-detector = "gentlii_drift_detector.cli:main"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
