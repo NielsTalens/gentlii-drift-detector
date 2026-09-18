@@ -56,3 +56,71 @@ The result should describe:
 
 The goal is not only to determine whether drift exists, but to make visible **which strategy the organisation has actually been executing through its delivered work**.
 
+## Step 2 proof of concept
+
+The current CLI implements **Step 2 only**. It analyzes one user-prepared Markdown file as a single period; it does not retrieve GitHub issues, compare years, or perform Steps 3 and 4. The parser is intentionally best-effort for this proof of concept, so imperfect and sparse issue sections may produce warnings rather than stop the run.
+
+### Install and run
+
+Python 3.11 or newer is required:
+
+```bash
+python -m venv .venv
+.venv/bin/pip install -e '.[dev]'
+.venv/bin/drift-detector issues-2026.md --output results/
+```
+
+The default model is `gpt-5.6-terra`. Use `--model MODEL` to select another model and `--batch-size SIZE` to change the number of issues sent in each extraction request (the default is 10):
+
+```bash
+.venv/bin/drift-detector issues-2026.md --output results/ \
+  --model gpt-5.6-terra --batch-size 10
+```
+
+### Store the API key
+
+The CLI loads the OpenAI API key from the desktop keyring with the exact command `secret-tool lookup key GNTL_DD app gentlii-drift-detection`. It keeps the returned key in memory and never logs or persists it.
+
+Store the key through standard input so it does not appear in the command itself or shell history:
+
+```bash
+read -rsp 'OpenAI API key: ' GENTLII_API_KEY
+printf '%s' "$GENTLII_API_KEY" | secret-tool store \
+  --label='Gentlii Drift Detector OpenAI API key' \
+  key GNTL_DD app gentlii-drift-detection
+unset GENTLII_API_KEY
+```
+
+Press Enter after typing the key. Your keyring may ask you to unlock it. Avoid placing the key directly in a command, environment file, or committed file.
+
+### Input format
+
+Use one level-two issue heading per issue. The issue number, title, and body are the useful evidence; `Closed` and `Labels` are optional metadata.
+
+```markdown
+# Completed GitHub Issues
+
+## Issue #123: Short issue title
+
+- Closed: 2026-03-14T10:32:00Z
+- Labels: enhancement, customer-request
+
+### Body
+
+Full issue body here.
+
+---
+```
+
+A sanitized two-issue example is available at [`tests/fixtures/issues.md`](tests/fixtures/issues.md).
+
+### Data sent to OpenAI and outputs
+
+Analysis uses two stages. First, the issue title, body, and available metadata are sent to OpenAI in batches to derive compact observations. Second, those derived observations are sent back to OpenAI for synthesis. Requests set `store: false`. Issue content is therefore disclosed to OpenAI for analysis even though it is not copied into the reports.
+
+The output directory contains:
+
+- `analysis.json`: structured per-issue observations, synthesis, evidence issue numbers, warnings, and token usage for reuse in later steps.
+- `report.md`: a human-readable synthesis with issue-number evidence.
+
+Both files contain derived evidence and conclusions, not the raw issue bodies. Review them as model-generated analysis rather than a statement of organizational intent.
